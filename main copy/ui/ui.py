@@ -1,4 +1,4 @@
-from kiwoom.kiwoom_js import *
+from kiwoom.kiwoom_pb import *
 import sys
 from PyQt5.QtWidgets import *
 

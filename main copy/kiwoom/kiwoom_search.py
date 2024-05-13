@@ -6,6 +6,12 @@ from config.errorCode import *
 from config.kiwoomType import *
 import logging
 import time
+# from datetime import datetime
+# now = datetime.now()
+# print(now.year)
+# print(now.month+now.day)
+# print(now.day)
+
 
 class Kiwoom(QAxWidget):
     def __init__(self):
@@ -21,20 +27,25 @@ class Kiwoom(QAxWidget):
         self.account_select = 1
         self.use_money_percent = 0.1
 
-        self.startline = 1            # 시작 기준 퍼센트
-        self.endline = 5              # 손절 기준 퍼센트
-        self.line1, self.line2, self.line3 = 10,20,30             # 라인 퍼센트
-        self.panm1, self.panm2, self.panm3 = 10,20,100            # 매도 퍼센트
-        
-        self.no = 1                   # 조건식 선택
-        self.ms = 1                   # 매수 수량
+        self.startline = 5            # 시작 기준 퍼센트
+        self.endline = 0             # 손절 기준 퍼센트
+        self.line1, self.line2, self.line3 = 20,30,50             # 라인 퍼센트
+        self.panm1, self.panm2, self.panm3 = 50,50,100            # 매도 퍼센트
+       
+        self.no1 = 0                   # 조건식 선택
+        self.no2 = 1                   # 조건식 선택
+        self.no3 = 2                   # 조건식 선택
+        self.no4 = 3                   # 조건식 선택
 
+        self.ms = 10                   # 매수 수량
+        
         self.dict=[]
         self.line_dict = {}
         self.not_account_stock_dict={}
         self.jango_dict = {}
         self.index = []
         self.name = []
+        self.today_symbol = []
 
         ##시작##
         self.get_ocx_instance()
@@ -42,26 +53,28 @@ class Kiwoom(QAxWidget):
         self.real_event_slots()
 
         self.signal_login_commConnect()
-        self.GetConditionNameList()
-        self.GetConditionLoad()
         
+        self.GetConditionLoad()
         self.get_account_info()
+
         self.detail_account_info()
         self.having_check_info()
-        self.send_condition()
+        self.dynamicCall('SetRealReg(QString, QString, QString, QString)', self.screen_start_stop_real, '', self.realType.REALTYPE['장시작시간']['장운영구분'], '0')
 
-        # for code in self.dict:
-        #     screen_num = 4000
-        #     fids = self.realType.REALTYPE['주식호가잔량']['호가시간']
-        #     self.dynamicCall('SetRealReg(QString, QString, QString, QString)', screen_num, code, fids, '1')
-        #     print('실시간 등록 코드: %s, 스크린번호: %s, fid번호: %s' % (code,screen_num,20))
+        self.GetConditionNameList()
+        self.send_condition()
+        for code in self.dict:
+            screen_num = 4000
+            fids = self.realType.REALTYPE['주식호가잔량']['호가시간']
+            self.dynamicCall('SetRealReg(QString, QString, QString, QString)', screen_num, code, fids, '1')
+            print('실시간 등록 코드: %s, 스크린번호: %s, fid번호: %s' % (code,screen_num,20))
     
     def get_ocx_instance(self):
         self.setControl('KHOPENAPI.KHOpenAPICtrl.1') 
 
     def event_slots(self):
-        self.OnEventConnect.connect(self._handler_login)
         self.OnEventConnect.connect(self.login_slot)
+        self.OnEventConnect.connect(self._handler_login)
         self.OnReceiveTrData.connect(self.trdata_slot)
         self.OnReceiveMsg.connect(self.msg_slot)
 
@@ -93,18 +106,28 @@ class Kiwoom(QAxWidget):
         print("handler condition load", ret, msg)
 
     def _handler_real_condition(self, code, type, cond_name, cond_index):
-        if type == 'D' and code not in self.dict:
+        # self.o(code)
+        # e_price = abs(self.e_price)
+        # if code not in self.dict: #type == 'D' and
+        if code not in self.today_symbol:  
             self.dict.append(code)
-            gr = self.dynamicCall('SendOrder(QString, QString, QString, QString, int, int, QString, QString, int)',['조건식매수', self.screen_price_info, self.account_num,1, code, self.ms, 0, '03', ""])
-            current_price = self.dynamicCall('GetCommData(QString, QString, int, QString)', 10, '주식시세', 0, '현재가')
-            print(cond_name, code, current_price)
+            # print(self.ms,e_price)
+            gr = self.dynamicCall('SendOrder(QString, QString, QString, QString, QString, int, QString, QString, int)',['조건식매수', self.screen_price_info, self.account_num,1, code, int(self.ms), 0, '03', ""])
+            if gr == 0:
+                ko = "성공"
+                self.today_symbol.append(code)
+            else:
+                ko = "실패"
+            print(cond_name, code, ko)
+        else:
+            print(code,"중복")
 
     def GetCommRealData(self):
         self.dynamicCall("GetCommRealData()")
 
-
     def GetConditionLoad(self):
-        self.dynamicCall("GetConditionLoad()")
+        d =self.dynamicCall("GetConditionLoad()")
+        print(d)
 
     def GetConditionNameList(self):
         data = self.dynamicCall("GetConditionNameList()")
@@ -117,13 +140,18 @@ class Kiwoom(QAxWidget):
 
     def SendCondition(self, screen, cond_name, cond_index, search):
         ret = self.dynamicCall("SendCondition(QString, QString, int, int)", screen, cond_name, cond_index, search)
-        print(ret)
     def SendConditionStop(self, screen, cond_name, cond_index):
         ret = self.dynamicCall("SendConditionStop(QString, QString, int)", screen, cond_name, cond_index)
 
     def send_condition(self):
-        k = self.SendCondition("100", self.name[self.no], self.name[self.no], 1)
-
+        print("사용조건식", self.name[self.no1])
+        k = self.SendCondition("100", self.name[self.no1], self.index[self.no1], 1)
+        # print("사용조건식", self.name[self.no2])
+        # k = self.SendCondition("100", self.name[self.no2], self.index[self.no2], 1)
+        print("사용조건식", self.name[self.no3])
+        k = self.SendCondition("100", self.name[self.no3], self.index[self.no3], 1)
+        print("사용조건식", self.name[self.no4])
+        k = self.SendCondition("100", self.name[self.no4], self.index[self.no4], 1)
 
     def trdata_slot(self, sScrNo, sRQName, sTrCode, sRecordName, sPrevNext):
                          # 스크린번호, 설정이름, 요청id, 사용안함, 다음페이지
@@ -143,20 +171,17 @@ class Kiwoom(QAxWidget):
                 h_code = self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, i, '종목코드').strip()[1:]
                 h_name = self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, i, '평균단가')
                 stock_quan = self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, i, '보유수량')
-
                 self.dict.append(str(h_code))
                 self.line_dict[str(h_code)]={"평균단가":int(h_name),"현재가":0,"최대":0,"1차":0,"2차":0,"3차":0,"손절":0,"상태":0}
                 self.jango_dict[str(h_code)]={'보유수량':int(stock_quan)}
-            print(self.dict)
+                self.today_symbol.append(str(h_code))
             self.real_price_check_event_loop.exit()
-
-        if sRQName == '주식일주월시분요청':
-            self.sub = []
-            h_price = int(self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, 1, '고가'))
-            l_price = int(self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, 1, '저가'))
-            e_price = int(self.dynamicCall('GetCommData(String, String, int, String)', sTrCode, sRQName, 1, '종가'))
-            self.sub = [h_price,l_price,e_price]
-            self.Pivot_event_loop.exit()
+        
+        if sRQName == '체결정보요청':
+            self.e_price = self.dynamicCall('GetCommData(String, String, int, String)', 'OPT10003', '체결정보요청', 0, '현재가')
+            self.e_price = self.e_price.replace(" ","")
+            print(self.e_price)
+            print(abs(int(self.e_price)))
 
     def get_account_info(self):
         account_list = self.dynamicCall('GetLogininfo(String)','ACCNO')
@@ -184,15 +209,14 @@ class Kiwoom(QAxWidget):
         self.real_price_check_event_loop = QEventLoop()
         self.real_price_check_event_loop.exec_()
 
-    def having_pivot_info(self, code):
-        print('Pivot작업')
-        self.dynamicCall('SetInputValue(String, String)','종목코드', code)
-        self.dynamicCall('CommRqData(String, String, int, String)','주식일주월시분요청',"opt10005","0",self.screen_pivot_info)
-        self.Pivot_event_loop = QEventLoop()
-        self.Pivot_event_loop.exec_()
+    # def o(self,code):
+    #     time.sleep(0.5)
+    #     print('=')
+    #     self.dynamicCall('SetInputValue(String, String)','종목코드', code)
+    #     k=self.dynamicCall('CommRqData(String, String, int, String)','체결정보요청',"OPT10003","0",self.screen_pivot_info)
+    #     print(code, k)
 
     def realdata_slot(self, sCode, sRealType, sRealData):
-        
         if sRealType == '장시작시간':
             fid = self.realType.REALTYPE[sRealType]['장운영구분']
             value = self.dynamicCall('GetCommRealData(QString, int)', str(sCode), fid)
@@ -207,6 +231,7 @@ class Kiwoom(QAxWidget):
                 print('3시30분 장 종료')
 
         elif sRealType == '주식체결':
+            print('check')
             try:
                 C_count = int(self.jango_dict[str(sCode)]['보유수량'])
                 CODE = self.line_dict[sCode]
@@ -216,11 +241,9 @@ class Kiwoom(QAxWidget):
                 CODE["손절"] = CODE["평균단가"]*(1-0.01*self.endline)
                 if CODE["최대"] < CODE["현재가"]:
                     CODE["최대"] = CODE["현재가"]
-                    CODE["상태"] == 0
-                # print(CODE)
+                    CODE["상태"] = 0
                 if CODE['현재가'] < CODE["손절"]:
                     gr = self.dynamicCall('SendOrder(QString, QString, QString, QString, QString, int, int, QString, QString)',['손절매도', '0101', self.account_num, 2, sCode, C_count, 0, '03', ""])
-                    print("손절매도", C_count, CODE)
 
                 if CODE['현재가'] > CODE["평균단가"]*(1+0.01*self.startline) and CODE["상태"] == 0:
                     CODE["1차"] = CODE["평균단가"]+(CODE["최대"]-CODE["평균단가"])*(1-self.line1*0.01)
